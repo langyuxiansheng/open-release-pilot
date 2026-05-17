@@ -1,5 +1,7 @@
 # Open Release Pilot
 
+[中文](./README.md) | [English](./README_EN.md)
+
 Open Release Pilot 是一个面向 Flutter 应用的本地可视化发布控制台。它把项目配置、Android 多渠道打包、iOS IPA 构建、应用市场上传配置、发布记录和局域网扫码安装预览集中在一个本地 Web 面板里。
 
 项目地址：<https://github.com/langyuxiansheng/open-release-pilot>
