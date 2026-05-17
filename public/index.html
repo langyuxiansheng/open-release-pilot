@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Release Pilot</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <aside class="admin-sidebar" aria-label="后台导航">
+      <div class="sidebar-menu">
+        <div class="sidebar-brand">
+          <strong>Open Release Pilot</strong>
+          <span>Flutter 发布控制台</span>
+        </div>
+        <nav class="side-nav" aria-label="发布面板页面导航">
+          <a href="#workbench" data-page-link="workbench" data-page-title="打包工作台">
+            <span class="nav-title">打包工作台</span>
+            <small>Android / iOS / 实时日志</small>
+          </a>
+          <a href="#distribution" data-page-link="distribution" data-page-title="分发管理">
+            <span class="nav-title">分发管理</span>
+            <small>渠道配置 / 更新日志</small>
+          </a>
+          <a href="#projects" data-page-link="projects" data-page-title="项目管理">
+            <span class="nav-title">项目管理</span>
+            <small>项目路径 / 版本规则</small>
+          </a>
+        </nav>
+      </div>
+    </aside>
+    <div id="toastViewport" class="toast-viewport" aria-live="polite" aria-atomic="true"></div>
+
+    <main class="app">
+      <header class="topbar">
+        <div class="topbar-main">
+          <h1 id="pageTitle">打包工作台</h1>
+          <p id="projectRoot"></p>
+        </div>
+        <div class="topbar-actions">
+          <label class="quick-project-switch">
+            <span>当前项目</span>
+            <select id="quickProjectSelector" aria-label="快速切换当前项目"></select>
+          </label>
+          <div class="theme-switcher" role="group" aria-label="主题切换">
+            <button class="theme-option" data-theme-option="system" type="button">跟随系统</button>
+            <button class="theme-option" data-theme-option="light" type="button">亮色</button>
+            <button class="theme-option" data-theme-option="dark" type="button">暗色</button>
+          </div>
+          <button id="refreshButton" type="button">刷新</button>
+        </div>
+      </header>
+
+      <section class="page active" data-page="workbench">
+        <section class="summary">
+          <div class="metric">
+            <span>版本</span>
+            <strong id="versionText">-</strong>
+          </div>
+          <div class="metric">
+            <span>输出目录</span>
+            <strong id="versionDir">-</strong>
+          </div>
+          <div class="metric">
+            <span>打包状态</span>
+            <strong id="buildState">-</strong>
+          </div>
+          <div class="metric">
+            <span>iOS 状态</span>
+            <strong id="iosBuildState">-</strong>
+          </div>
+          <div class="metric">
+            <span>本地数据库</span>
+            <strong id="databasePath">-</strong>
+          </div>
+        </section>
+
+        <div class="workbench-grid">
+          <div id="section-packages" class="panel package-panel android-panel">
+            <div class="panel-title">
+              <h2>Android 打包</h2>
+              <div class="button-row">
+                <button id="refreshPackagesButton" type="button">刷新包状态</button>
+                <button id="selectAllChannelsButton" type="button">全选渠道</button>
+                <button id="buildButton" type="button">开始打包</button>
+                <button id="stopBuildButton" type="button">终止打包</button>
+                <button id="deletePackagesButton" type="button">删除选中包</button>
+              </div>
+            </div>
+            <div class="build-progress">
+              <div class="progress-meta">
+                <strong id="buildProgressTitle">空闲</strong>
+                <span id="buildElapsedText">用时：0秒</span>
+              </div>
+              <div class="progress-bar" aria-label="安卓打包进度">
+                <div id="buildProgressBar" class="progress-bar-value"></div>
+              </div>
+              <div id="buildProgressDetail" class="progress-detail">等待开始打包</div>
+            </div>
+            <div id="packageList" class="package-list"></div>
+          </div>
+
+          <div id="section-ios" class="panel ios-panel">
+            <div class="panel-title">
+              <h2>iOS 打包与发布</h2>
+              <div class="button-row">
+                <button id="saveIosConfigButton" type="button">保存 iOS 配置</button>
+                <button id="iosReleaseButton" type="button">执行 iOS 发布</button>
+                <button id="stopIosReleaseButton" type="button">停止 iOS 发布</button>
+              </div>
+            </div>
+            <div id="iosReleasePanel" class="ios-release"></div>
+          </div>
+
+          <div id="section-log" class="panel log-panel">
+            <div class="panel-title">
+              <h2>构建日志</h2>
+              <button id="clearLogButton" type="button">清空</button>
+            </div>
+            <pre id="buildLog"></pre>
+          </div>
+
+          <div class="monitor-stack">
+            <div id="section-processes" class="panel process-panel">
+              <div class="panel-title">
+                <h2>后台进程</h2>
+                <div class="button-row">
+                  <button id="refreshProcessesButton" type="button">刷新进程</button>
+                  <button id="stopProcessesButton" type="button">停止发布构建</button>
+                </div>
+              </div>
+              <div id="processPanel" class="process-list"></div>
+            </div>
+
+            <div id="section-install" class="panel install-panel">
+              <div class="panel-title">
+                <h2>扫码安装</h2>
+                <button id="refreshInstallPreviewButton" type="button">刷新预览</button>
+              </div>
+              <div id="installPreviewPanel" class="install-preview"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" data-page="projects" hidden>
+        <div id="section-projects" class="panel projects-panel">
+          <div class="panel-title">
+            <h2>项目管理</h2>
+            <div class="button-row">
+              <button id="newProjectButton" type="button">新建项目</button>
+              <button id="saveProjectButton" type="button">保存项目</button>
+              <button id="deleteProjectButton" type="button">删除项目</button>
+            </div>
+          </div>
+          <div id="projectPanel" class="project-panel"></div>
+        </div>
+      </section>
+
+      <section class="page" data-page="distribution" hidden>
+        <div class="distribution-grid">
+          <div id="section-stores" class="panel stores-panel">
+            <div class="panel-title">
+              <h2>应用市场接口配置</h2>
+              <div class="button-row">
+                <button id="saveStoreConfigButton" type="button">保存配置</button>
+                <button id="uploadButton" type="button">上传预检</button>
+                <button id="uploadExecuteButton" type="button">执行上传</button>
+                <button id="stopUploadButton" type="button">终止上传</button>
+              </div>
+            </div>
+            <div id="storeUploadProgress" class="build-progress store-upload-progress">
+              <div class="progress-meta">
+                <strong id="storeUploadProgressTitle">空闲 / 0%</strong>
+                <span id="storeUploadElapsedText">用时：0秒</span>
+              </div>
+              <div class="progress-bar" aria-label="应用市场上传进度">
+                <div id="storeUploadProgressBar" class="progress-bar-value"></div>
+              </div>
+              <div id="storeUploadProgressDetail" class="progress-detail">等待执行上传</div>
+            </div>
+            <div id="storeConfig" class="store-config"></div>
+          </div>
+
+          <div id="section-notes" class="panel notes-panel">
+            <div class="panel-title">
+              <h2>全局更新日志</h2>
+              <button id="saveNotesButton" type="button">保存</button>
+            </div>
+            <textarea id="releaseNotes" placeholder="填写本次版本更新说明。各渠道发布配置可一键引用这份文案，但引用后会独立保存，不会自动同步。"></textarea>
+          </div>
+
+          <div id="section-upload-runs" class="panel upload-runs-panel">
+            <div class="panel-title">
+              <h2>上传记录</h2>
+            </div>
+            <div id="uploadRunsPanel" class="upload-runs-table"></div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="opensource-footer">
+        <div>
+          <strong>Open Release Pilot</strong>
+          <span>开源的本地 Flutter 发布控制台，配置和发布记录默认只保存在本机。</span>
+        </div>
+        <div class="opensource-footer-links">
+          <a href="https://github.com/langyuxiansheng/open-release-pilot" target="_blank" rel="noreferrer">GitHub</a>
+          <span>Apache License 2.0</span>
+          <span>Copyright (c) 2026 langyuxiansheng</span>
+        </div>
+      </footer>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

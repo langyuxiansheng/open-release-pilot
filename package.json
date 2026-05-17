@@ -1,0 +1,31 @@
+{
+  "name": "open-release-pilot",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Local visual release dashboard for Flutter app builds and app-store publishing.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/langyuxiansheng/open-release-pilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/langyuxiansheng/open-release-pilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/langyuxiansheng/open-release-pilot/issues"
+  },
+  "keywords": [
+    "flutter",
+    "release",
+    "android",
+    "ios",
+    "dashboard",
+    "app-store",
+    "local-tool"
+  ],
+  "scripts": {
+    "start": "./start.sh",
+    "start:raw": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

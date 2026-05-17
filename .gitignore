@@ -141,3 +141,19 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Open Release Pilot local runtime data and secrets
+config/stores.local.json
+data/*.json
+data/*.log
+data/*.tmp
+*.apk
+*.ipa
+*.aab
+*.jks
+*.keystore
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+.DS_Store
