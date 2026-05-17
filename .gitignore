@@ -147,6 +147,10 @@ config/stores.local.json
 data/*.json
 data/*.log
 data/*.tmp
+
+# Publication drafts for external platforms such as CSDN/Juejin.
+docs/articles/
+
 *.apk
 *.ipa
 *.aab
