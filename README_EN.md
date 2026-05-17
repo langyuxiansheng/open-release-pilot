@@ -23,6 +23,20 @@ Repository: <https://github.com/langyuxiansheng/open-release-pilot>
 - Install preview: generate LAN install links for current Android packages so devices on the same network can test quickly.
 - Theme modes: system, light, and dark.
 
+## Screenshots
+
+### Build Workbench
+
+![Build Workbench](./screenshots/workbench.png)
+
+### Distribution Management
+
+![Distribution Management](./screenshots/distribution.png)
+
+### Project Management
+
+![Project Management](./screenshots/projects.png)
+
 ## Tech Stack
 
 - Native Node.js HTTP server, no Express dependency.

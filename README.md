@@ -23,6 +23,20 @@ Open Release Pilot 是一个面向 Flutter 应用的本地可视化发布控制�
 - 扫码安装：对当前版本 Android 包生成局域网访问入口，方便同网设备测试安装。
 - 主题切换：支持跟随系统、亮色、暗色。
 
+## 界面预览
+
+### 打包工作台
+
+![打包工作台](./screenshots/workbench.png)
+
+### 分发管理
+
+![分发管理](./screenshots/distribution.png)
+
+### 项目管理
+
+![项目管理](./screenshots/projects.png)
+
 ## 技术栈
 
 - Node.js 原生 HTTP 服务，无 Express 依赖。
