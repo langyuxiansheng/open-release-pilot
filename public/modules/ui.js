@@ -49,7 +49,9 @@ export async function runButtonAction(button, action, messages = {}) {
   if (messages.pending) button.textContent = messages.pending;
 
   try {
-    await action();
+    const result = await action();
+    // 返回 false 表示用户主动取消了二次确认，不应该弹出“操作成功”的反馈。
+    if (result === false) return;
     if (messages.success) showToast(messages.success, 'success');
   } catch (error) {
     const message = error?.message || messages.error || '操作失败';

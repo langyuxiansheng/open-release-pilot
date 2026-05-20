@@ -164,8 +164,10 @@
               <h2>应用市场接口配置</h2>
               <div class="button-row">
                 <button id="saveStoreConfigButton" type="button">保存配置</button>
-                <button id="uploadButton" type="button">上传预检</button>
-                <button id="uploadExecuteButton" type="button">执行上传</button>
+                <button id="uploadButton" type="button">当前平台预检</button>
+                <button id="uploadExecuteButton" type="button">上传当前平台</button>
+                <button id="uploadAllButton" type="button">上传所有可自动上传平台</button>
+                <button id="revokeAllButton" class="danger-action" type="button">一键撤销审核</button>
                 <button id="stopUploadButton" type="button">终止上传</button>
               </div>
             </div>
@@ -179,6 +181,9 @@
               </div>
               <div id="storeUploadProgressDetail" class="progress-detail">等待执行上传</div>
             </div>
+            <div class="store-config-save-tip" role="note">
+              修改应用市场接口配置后，请先点击“保存配置”，再执行预检、上传、分步骤发布或撤销审核；未保存的表单内容可能不会被后端读取。
+            </div>
             <div id="storeConfig" class="store-config"></div>
           </div>
 
@@ -188,11 +193,54 @@
               <button id="saveNotesButton" type="button">保存</button>
             </div>
             <textarea id="releaseNotes" placeholder="填写本次版本更新说明。各渠道发布配置可一键引用这份文案，但引用后会独立保存，不会自动同步。"></textarea>
+            <div class="docs-link-panel" aria-label="发布接口文档">
+              <div>
+                <strong>发布接口文档</strong>
+                <span>用于核对上传、审核、撤销等平台流程</span>
+              </div>
+              <nav class="docs-link-list" aria-label="应用平台文档链接">
+                <a href="https://www.pgyer.com/doc/view/api_upload" target="_blank" rel="noreferrer noopener">蒲公英上传</a>
+                <a href="https://developer.huawei.com/consumer/cn/doc/app/agc-help-publish-api-app-package-info-update-0000002236201250" target="_blank" rel="noreferrer noopener">华为包信息更新</a>
+                <a href="https://developer.honor.com/cn/doc/guides/101359" target="_blank" rel="noreferrer noopener">荣耀发布接口</a>
+                <a href="https://wikinew.open.qq.com/index.html#/iwiki/4015262492" target="_blank" rel="noreferrer noopener">应用宝 API 更新</a>
+                <a href="https://dev.mi.com/xiaomihyperos/documentation/detail?pId=1134" target="_blank" rel="noreferrer noopener">小米自动发布</a>
+                <a href="https://open.oppomobile.com/documentation/page/info?id=10999" target="_blank" rel="noreferrer noopener">OPPO API 传包</a>
+                <a href="https://open.oppomobile.com/documentation/page/info?id=11017" target="_blank" rel="noreferrer noopener">OPPO 分类对照表</a>
+                <a href="https://dev.vivo.com.cn/documentCenter/doc/326" target="_blank" rel="noreferrer noopener">vivo Open API</a>
+                <a href="https://developer.apple.com/cn/help/app-store-connect/manage-builds/upload-builds" target="_blank" rel="noreferrer noopener">App Store Connect</a>
+              </nav>
+            </div>
           </div>
 
           <div id="section-upload-runs" class="panel upload-runs-panel">
             <div class="panel-title">
               <h2>上传记录</h2>
+            </div>
+            <div class="upload-runs-filters" aria-label="上传记录筛选">
+              <label>
+                <span>搜索</span>
+                <input id="uploadRunsSearch" type="search" placeholder="渠道、动作、结果、文件路径、版本号、buildKey..." autocomplete="off">
+              </label>
+              <label>
+                <span>渠道</span>
+                <select id="uploadRunsStoreFilter">
+                  <option value="">全部渠道</option>
+                </select>
+              </label>
+              <label>
+                <span>动作</span>
+                <select id="uploadRunsActionFilter">
+                  <option value="">全部动作</option>
+                </select>
+              </label>
+              <label>
+                <span>状态</span>
+                <select id="uploadRunsStatusFilter">
+                  <option value="">全部状态</option>
+                  <option value="ok">成功</option>
+                  <option value="fail">失败</option>
+                </select>
+              </label>
             </div>
             <div id="uploadRunsPanel" class="upload-runs-table"></div>
           </div>

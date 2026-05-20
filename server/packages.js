@@ -33,16 +33,8 @@ function scanPackages() {
   const project = getActiveProject();
   const version = readVersion();
   const { versionName, versionCode } = version;
-  const hasVersion = Boolean(versionName && versionCode);
-  const versionDir = hasVersion ? path.join(project.androidOutputRoot, versionName) : "";
+  const versionDir = path.join(project.androidOutputRoot, versionName);
   const packages = project.channels.map((channel) => {
-    if (!hasVersion) {
-      return {
-        ...channel,
-        apk: null,
-        expectedApkPath: "",
-      };
-    }
     const apkName = renderTemplate(project.apkNameTemplate, { versionName, versionCode, channel: channel.code, appSlug: project.appSlug });
     const apkPath = path.join(versionDir, channel.dir, apkName);
     const fallbackApkPath = findExistingChannelApk(path.join(versionDir, channel.dir), { versionName, versionCode, channel: channel.code });
@@ -52,10 +44,16 @@ function scanPackages() {
       expectedApkPath: apkPath,
     };
   });
-  const packageInfo = { projectId: project.id, versionName, versionCode, versionDir, packages, warning: version.warning || "" };
-  // 占位项目或版本文件缺失时不要写入空版本记录；只返回可渲染状态，
-  // 让开源首启页面保持可用，并引导用户先完成项目配置。
-  if (hasVersion) savePackageSnapshot(packageInfo);
+  const packageInfo = {
+    projectId: project.id,
+    versionName,
+    versionCode,
+    versionDir,
+    packages,
+    warning: version.warning || "",
+  };
+  // 没有真实版本号时只返回页面状态，不写 release-db.json，避免开放版首次启动生成空版本记录。
+  if (versionName && versionCode) savePackageSnapshot(packageInfo);
   return packageInfo;
 }
 
@@ -93,16 +91,15 @@ function scanIosPackage() {
   const version = readVersion();
   const { versionName, versionCode } = version;
   const config = readIosConfig();
-  const hasVersion = Boolean(versionName && versionCode);
-  const outputDir = hasVersion ? (config.outputDir || path.join(project.iosOutputRoot, versionName)) : "";
-  const ipaName = hasVersion ? renderTemplate(project.ipaNameTemplate, { versionName, versionCode, appSlug: project.appSlug }) : "";
-  const ipaPath = hasVersion ? path.join(outputDir, ipaName) : "";
+  const outputDir = config.outputDir || path.join(project.iosOutputRoot, versionName);
+  const ipaName = renderTemplate(project.ipaNameTemplate, { versionName, versionCode, appSlug: project.appSlug });
+  const ipaPath = path.join(outputDir, ipaName);
   return {
     projectId: project.id,
     versionName,
     versionCode,
     outputDir,
-    ipa: hasVersion ? getPackageFileInfo(ipaPath) : null,
+    ipa: getPackageFileInfo(ipaPath),
     releaseTargets: IOS_RELEASE_TARGETS,
     config,
     warning: version.warning || "",

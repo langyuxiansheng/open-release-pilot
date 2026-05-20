@@ -91,13 +91,16 @@ function updateStoreUploadProgress(patch = {}) {
 function finishStoreUploadProgress(result = {}) {
   const current = runtime.storeUploadProgress || createIdleStoreUploadProgress();
   const elapsedMs = current.startedAt ? Date.now() - new Date(current.startedAt).getTime() : current.elapsedMs;
+  const isRevoke = String(current.action || result.action || "").includes("revoke");
   runtime.storeUploadProgress = {
     ...current,
     running: false,
     phase: result.ok ? "done" : "failed",
     percent: result.ok ? 100 : Math.max(Number(current.percent || 0), 1),
-    statusText: result.ok ? "上传完成" : "上传失败",
-    detail: result.message || (result.ok ? "上传流程已完成" : "上传流程失败"),
+    statusText: result.ok ? (isRevoke ? "撤销完成" : "上传完成") : (isRevoke ? "撤销失败" : "上传失败"),
+    detail: result.message || (result.ok
+      ? (isRevoke ? "撤销审核流程已完成" : "上传流程已完成")
+      : (isRevoke ? "撤销审核流程失败" : "上传流程失败")),
     finishedAt: new Date().toISOString(),
     elapsedMs,
     elapsedText: formatDuration(elapsedMs),

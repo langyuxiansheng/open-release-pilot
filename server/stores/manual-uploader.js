@@ -11,6 +11,19 @@
  */
 async function runManualStoreUpload(storeKey, options = {}) {
   const action = options.action || "precheck";
+  if (action === "revoke-review") {
+    return {
+      ok: false,
+      store: storeKey,
+      action,
+      message: `${storeKey} 暂未接入自动撤销审核接口，请进入对应应用市场后台人工撤销。`,
+      missing: [],
+      warnings: ["该渠道当前没有可自动调用的撤销审核服务。"],
+      plannedFiles: [],
+      updateFields: [],
+    };
+  }
+
   return {
     ok: false,
     store: storeKey,

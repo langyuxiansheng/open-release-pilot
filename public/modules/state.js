@@ -8,6 +8,12 @@
  *   status: object|null,
  *   activePage: string,
  *   activeStoreKey: string,
+ *   uploadRunsPage: number,
+ *   uploadRunsQuery: string,
+ *   uploadRunsStoreFilter: string,
+ *   uploadRunsActionFilter: string,
+ *   uploadRunsStatusFilter: string,
+ *   uploadRuns: object[],
  *   themePreference: string,
  *   selectedChannelCodes: Set<string>
  * }}
@@ -20,6 +26,14 @@ export const state = {
   activePage: decodeURIComponent(window.location.hash || '').replace('#', '') || 'workbench',
   // 上传配置区域当前打开的平台 tab。服务端刷新后继续保留当前 tab，减少配置时的跳动。
   activeStoreKey: '',
+  // 上传记录分页页码。记录来自本地 JSON 数据库，前端分页避免一次渲染过长表格。
+  uploadRunsPage: 1,
+  // 上传记录筛选条件只属于浏览器当前页面，不写入后端数据库。
+  uploadRunsQuery: '',
+  uploadRunsStoreFilter: '',
+  uploadRunsActionFilter: '',
+  uploadRunsStatusFilter: '',
+  uploadRuns: [],
   // 主题偏好只属于当前浏览器，不写入后端数据库。取值：system / light / dark。
   themePreference: localStorage.getItem('release-panel-theme') || 'system',
   // 用户在“渠道包”区域勾选的渠道。它同时用于“按选中渠道打包”和“删除选中渠道已存在 APK”。
@@ -58,6 +72,10 @@ export const elements = {
   storeUploadProgressDetail: document.querySelector('#storeUploadProgressDetail'),
   storeUploadElapsedText: document.querySelector('#storeUploadElapsedText'),
   uploadRunsPanel: document.querySelector('#uploadRunsPanel'),
+  uploadRunsSearch: document.querySelector('#uploadRunsSearch'),
+  uploadRunsStoreFilter: document.querySelector('#uploadRunsStoreFilter'),
+  uploadRunsActionFilter: document.querySelector('#uploadRunsActionFilter'),
+  uploadRunsStatusFilter: document.querySelector('#uploadRunsStatusFilter'),
   quickProjectSelector: document.querySelector('#quickProjectSelector'),
   refreshButton: document.querySelector('#refreshButton'),
   refreshPackagesButton: document.querySelector('#refreshPackagesButton'),
@@ -78,6 +96,8 @@ export const elements = {
   stopIosReleaseButton: document.querySelector('#stopIosReleaseButton'),
   uploadButton: document.querySelector('#uploadButton'),
   uploadExecuteButton: document.querySelector('#uploadExecuteButton'),
+  uploadAllButton: document.querySelector('#uploadAllButton'),
+  revokeAllButton: document.querySelector('#revokeAllButton'),
   stopUploadButton: document.querySelector('#stopUploadButton'),
   clearLogButton: document.querySelector('#clearLogButton'),
   themeOptions: document.querySelectorAll('[data-theme-option]'),

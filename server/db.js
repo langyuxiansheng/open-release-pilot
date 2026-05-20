@@ -4,11 +4,14 @@ const {
   DATA_DIR,
   DB_FILE,
   DEFAULT_IOS_CONFIG,
+  EXAMPLE_STORE_CONFIG,
   STORE_FIELD_SCHEMAS,
   STORE_PLATFORMS,
 } = require("./config");
 const { readJsonIfExists, readText } = require("./utils");
 const { getActiveProject, writeActiveProjectIosConfig, writeActiveProjectStores } = require("./projects");
+
+const MAX_UPLOAD_RUNS = 200;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -27,6 +30,7 @@ function createEmptyDb() {
     iosBuildRuns: [],
     iosUploadRuns: [],
     uploadRuns: [],
+    storeStates: {},
     iosConfig: DEFAULT_IOS_CONFIG,
   };
 }
@@ -34,7 +38,7 @@ function createEmptyDb() {
 /**
  * 从 android/local.properties 读取 Flutter 版本号。
  *
- * @returns {{versionName: string, versionCode: string, projectId: string, warning?: string, versionFile?: string}} 当前 versionName 和 versionCode。
+ * @returns {{versionName: string, versionCode: string, projectId: string, versionFile: string, warning?: string}} 当前 versionName 和 versionCode。
  */
 function readVersion() {
   // 每个项目可以指定自己的版本文件和匹配规则；默认兼容 Flutter
@@ -42,8 +46,8 @@ function readVersion() {
   const project = getActiveProject();
   const versionFile = path.join(project.rootPath, project.versionFile);
   if (!fs.existsSync(versionFile)) {
-    // 开源仓库首次启动时通常只有占位项目路径。这里返回空版本和告警，
-    // 让 /api/status 仍能成功返回，用户才能进入“项目管理”配置真实项目。
+    // 开源默认配置只是占位路径，首次启动时不应该因为缺少真实 Flutter 工程而白屏。
+    // 前端会展示 warning，用户配置自己的项目后再进入正常扫描流程。
     return {
       versionName: "",
       versionCode: "",
@@ -55,7 +59,13 @@ function readVersion() {
   const localProperties = readText(versionFile);
   const versionName = localProperties.match(new RegExp(project.versionNamePattern, "m"))?.[1]?.trim() || "";
   const versionCode = localProperties.match(new RegExp(project.versionCodePattern, "m"))?.[1]?.trim() || "";
-  return { versionName, versionCode, projectId: project.id, versionFile };
+  return {
+    versionName,
+    versionCode,
+    projectId: project.id,
+    versionFile,
+    warning: versionName && versionCode ? "" : `未能从版本文件解析出完整版本号：${versionFile}`,
+  };
 }
 
 /**
@@ -75,6 +85,7 @@ function readDb() {
     iosBuildRuns: db.iosBuildRuns || [],
     iosUploadRuns: db.iosUploadRuns || [],
     uploadRuns: db.uploadRuns || [],
+    storeStates: db.storeStates || {},
     iosConfig: { ...DEFAULT_IOS_CONFIG, ...(db.iosConfig || {}) },
   };
 }
@@ -197,13 +208,22 @@ function writeIosConfig(config) {
 function readStoreConfig() {
   // 商店账号和发布参数随项目保存，避免多个 Flutter App 共用同一套包名和密钥。
   const project = getActiveProject();
+  const exampleStores = readJsonIfExists(EXAMPLE_STORE_CONFIG, {});
+  const projectStores = project.stores || {};
+  const stores = { ...exampleStores };
+  Object.entries(projectStores).forEach(([key, value]) => {
+    // 项目配置可能来自旧版本 schema。合并示例默认值后，
+    // 新增字段会直接显示在前端，不需要用户手工编辑 JSON。
+    stores[key] = { ...(exampleStores[key] || {}), ...(value || {}) };
+  });
   return {
     usingLocalConfig: true,
     path: require("./config").PROJECTS_DB_FILE,
     localPath: require("./config").PROJECTS_DB_FILE,
     platforms: STORE_PLATFORMS,
     schemas: STORE_FIELD_SCHEMAS,
-    stores: project.stores || {},
+    states: readStoreState(),
+    stores,
   };
 }
 
@@ -229,7 +249,9 @@ function writeStoreConfig(stores) {
  */
 function recordUploadRun(run) {
   const db = readDb();
-  db.uploadRuns = [run, ...db.uploadRuns].slice(0, 80);
+  // 上传记录只保存摘要，200 条对本地 JSON 读写仍然很轻；
+  // 超出后自动保留最近记录，避免 release-db.json 长期无限增长。
+  db.uploadRuns = [run, ...db.uploadRuns].slice(0, MAX_UPLOAD_RUNS);
   writeDb(db);
   return run;
 }
@@ -257,6 +279,70 @@ function deleteUploadRun(runId) {
   };
 }
 
+/**
+ * 读取当前项目的应用商店分步骤发布状态。
+ *
+ * 华为这类接口需要“上传包体 -> 更新包信息 -> 查询/提交”分步执行，
+ * 中间产物不能让用户手填，所以写入 release-db.json 的 storeStates。
+ *
+ * @param {string} [storeKey] 平台 key；不传时返回当前项目全部平台状态。
+ * @returns {object} 当前项目的分步骤执行状态。
+ */
+function readStoreState(storeKey) {
+  const db = readDb();
+  const projectId = getActiveProject().id;
+  const projectStates = db.storeStates?.[projectId] || {};
+  return storeKey ? projectStates[storeKey] || {} : projectStates;
+}
+
+/**
+ * 合并写入当前项目某个应用商店的分步骤发布状态。
+ *
+ * 只保存必要的执行摘要和下一步所需的非密钥字段，不保存 access token、
+ * clientSecret 这类敏感或短效凭据。
+ *
+ * @param {string} storeKey 平台 key，例如 huawei。
+ * @param {object} patch 需要合并保存的状态片段。
+ * @returns {object} 写入后的平台状态。
+ */
+function writeStoreState(storeKey, patch) {
+  const db = readDb();
+  const projectId = getActiveProject().id;
+  db.storeStates ||= {};
+  db.storeStates[projectId] ||= {};
+  const previous = db.storeStates[projectId][storeKey] || {};
+  db.storeStates[projectId][storeKey] = {
+    ...previous,
+    ...patch,
+    updatedAt: new Date().toISOString(),
+  };
+  writeDb(db);
+  return db.storeStates[projectId][storeKey];
+}
+
+/**
+ * 清空当前项目某个应用商店的分步骤发布状态。
+ *
+ * 华为这类流程会把“已上传包体 fileDestUrl”等中间状态写入本地库；
+ * 当用户重新执行一键流程或重新上传包体时，旧状态必须清掉，
+ * 否则页面会误以为后续步骤仍然对应当前这次发布。
+ *
+ * @param {string} storeKey 平台 key，例如 huawei。
+ * @returns {object} 清空后的平台状态，固定为空对象。
+ */
+function clearStoreState(storeKey) {
+  const db = readDb();
+  const projectId = getActiveProject().id;
+  if (!db.storeStates?.[projectId]?.[storeKey]) return {};
+
+  delete db.storeStates[projectId][storeKey];
+  if (Object.keys(db.storeStates[projectId]).length === 0) {
+    delete db.storeStates[projectId];
+  }
+  writeDb(db);
+  return {};
+}
+
 module.exports = {
   createEmptyDb,
   readVersion,
@@ -273,4 +359,7 @@ module.exports = {
   writeStoreConfig,
   recordUploadRun,
   deleteUploadRun,
+  readStoreState,
+  writeStoreState,
+  clearStoreState,
 };

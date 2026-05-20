@@ -117,7 +117,7 @@ function getProjectContext() {
       { key: "name", label: "项目名称", note: "发布面板里展示的名称。" },
       { key: "rootPath", label: "项目根目录", note: "必须存在；Flutter 项目通常包含 pubspec.yaml，Android 项目通常包含 settings.gradle 或 build.gradle。" },
       { key: "versionFile", label: "版本文件", note: "Flutter 默认 android/local.properties；Android 原生项目可用 app/build.gradle。" },
-      { key: "appSlug", label: "应用短名", note: "用于 IPA 文件名，例如 sem-3.5.0-68.ipa。" },
+      { key: "appSlug", label: "应用短名", note: "用于 IPA 文件名，例如 demo_app-3.5.0-68.ipa。" },
       { key: "androidOutputRoot", label: "Android 输出根目录", note: "可以不存在；打包脚本输出时会自动创建 <根目录>/<版本号>/<渠道目录>。" },
       { key: "iosOutputRoot", label: "iOS 输出根目录", note: "可以不存在；iOS 打包脚本输出时会自动创建 <根目录>/<版本号>。" },
       { key: "channels", label: "渠道列表", note: "每行 CODE=目录=显示名，例如 XIAOMI=小米=小米。" },
@@ -329,6 +329,34 @@ function listLocalDirectories(inputPath, options = {}) {
 }
 
 /**
+ * 读取可在前端预览的本机图片文件。
+ *
+ * 这个接口只服务发布配置里的图标/截图预览，因此严格限制后缀；
+ * 其它任意文件路径仍然只能在文件选择器中显示路径，不能通过浏览器读取内容。
+ *
+ * @param {string} inputPath 图片文件路径。
+ * @returns {{path: string, contentType: string, stream: import("fs").ReadStream}} 图片流信息。
+ */
+function openLocalImagePreview(inputPath) {
+  const filePath = path.resolve(String(inputPath || "").trim());
+  const imageTypes = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+  };
+  const ext = path.extname(filePath).toLowerCase();
+  if (!imageTypes[ext]) throw new Error("只支持预览 png、jpg、jpeg、webp、gif 图片。");
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) throw new Error("图片文件不存在。");
+  return {
+    path: filePath,
+    contentType: imageTypes[ext],
+    stream: fs.createReadStream(filePath),
+  };
+}
+
+/**
  * 删除项目配置。
  *
  * @param {string} projectId 项目 id。
@@ -532,6 +560,7 @@ module.exports = {
   getProjectContext,
   inspectProjectPath,
   listLocalDirectories,
+  openLocalImagePreview,
   setActiveProject,
   saveProject,
   deleteProject,

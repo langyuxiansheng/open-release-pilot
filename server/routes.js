@@ -1,4 +1,5 @@
 const { getAccessUrls } = require("./access");
+const { readApkInfo } = require("./apk-info");
 const { appendBuildLog, getBuildProgress, startBuild, stopBuild } = require("./android-build");
 const { deleteUploadRun, readCurrentNotes, readDb, readStoreConfig, writeCurrentNotes, writeIosConfig, writeStoreConfig } = require("./db");
 const { readRequestJson, sendJson } = require("./http-utils");
@@ -6,8 +7,9 @@ const { scanInstallPreview } = require("./install-preview");
 const { getIosReleaseProgress, startIosRelease, stopIosRelease } = require("./ios-release");
 const { deletePackages, scanIosPackage, scanPackages } = require("./packages");
 const { listBuildProcesses, stopBuildProcesses } = require("./processes");
-const { deleteProject, getActiveProject, getProjectContext, inspectProjectPath, listLocalDirectories, saveProject, setActiveProject } = require("./projects");
+const { deleteProject, getActiveProject, getProjectContext, inspectProjectPath, listLocalDirectories, openLocalImagePreview, saveProject, setActiveProject } = require("./projects");
 const runtime = require("./state");
+const { runHuaweiAction } = require("./stores/huawei/uploader");
 const { getStoreUploadProgress, runStoreUpload, stopStoreUpload } = require("./stores");
 
 /**
@@ -96,6 +98,25 @@ async function handleApi(req, res, pathname) {
       }));
     }
 
+    if (req.method === "GET" && pathname === "/api/files/preview") {
+      // 本机图片预览：只允许图片后缀，供图标/截图路径字段显示缩略图。
+      const url = new URL(req.url, "http://localhost");
+      const preview = openLocalImagePreview(url.searchParams.get("path"));
+      res.writeHead(200, {
+        "Content-Type": preview.contentType,
+        "Cache-Control": "no-store",
+      });
+      preview.stream.pipe(res);
+      return;
+    }
+
+    if (req.method === "POST" && pathname === "/api/files/apk-info") {
+      // APK 信息读取只在本机执行，不上传文件内容。
+      // 前端选择 APK 后用它自动回填 versionCode/packageName，减少应用市场字段手填错误。
+      const body = await readRequestJson(req);
+      return sendJson(res, 200, readApkInfo(body.path));
+    }
+
     if (req.method === "POST" && pathname === "/api/projects/delete") {
       // 删除项目配置，不删除任何 Flutter 工程文件或构建产物。
       const body = await readRequestJson(req);
@@ -103,7 +124,7 @@ async function handleApi(req, res, pathname) {
     }
 
     if (req.method === "POST" && pathname === "/api/store-config") {
-      // 安卓商店配置写入 stores.local.json，这个文件应被 .gitignore 忽略。
+      // 安卓商店配置随当前项目写入 projects-db.json；服务端保存前会按 schema 清理旧字段。
       const body = await readRequestJson(req);
       writeStoreConfig(body.stores || {});
       return sendJson(res, 200, { ok: true, storeConfig: readStoreConfig() });
@@ -180,6 +201,14 @@ async function handleApi(req, res, pathname) {
       // 不同应用市场的签名、字段、文件上传都交给 server/stores 下的独立服务。
       const body = await readRequestJson(req);
       return sendJson(res, 200, await runStoreUpload(body));
+    }
+
+    if (req.method === "POST" && pathname.startsWith("/api/stores/huawei/")) {
+      // 华为 Connect API 是分步骤发布流程：token、上传包体、更新包信息、
+      // 查询和提交审核都拆成独立动作，避免一个按钮直接走完整外部发布链路。
+      const action = pathname.replace("/api/stores/huawei/", "");
+      const body = await readRequestJson(req);
+      return sendJson(res, 200, await runHuaweiAction(action, body));
     }
 
     if (req.method === "GET" && pathname === "/api/upload/progress") {

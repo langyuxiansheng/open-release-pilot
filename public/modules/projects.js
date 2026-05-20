@@ -200,7 +200,7 @@ function createTemplateHelp(project) {
     ['{versionName}', '版本号，例如 3.5.0。'],
     ['{versionCode}', '构建号，例如 68。'],
     ['{channel}', 'Android 渠道代码，例如 XIAOMI。'],
-    ['{appSlug}', '应用短名，例如 sem。'],
+    ['{appSlug}', '应用短名，例如 demo_app。'],
   ].forEach(([name, note]) => {
     const item = document.createElement('div');
     const code = document.createElement('code');

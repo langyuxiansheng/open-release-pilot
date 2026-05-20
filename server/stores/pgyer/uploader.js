@@ -3,6 +3,7 @@ const http = require("http");
 const https = require("https");
 const path = require("path");
 const { readCurrentNotes, readDb, readStoreConfig, recordUploadRun } = require("../../db");
+const { compactParams, delay, formatBytes, isBlank, throwIfAborted } = require("../common");
 
 const DEFAULT_GET_TOKEN_URL = "https://www.pgyer.com/apiv2/app/getCOSToken";
 const DEFAULT_BUILD_INFO_URL = "https://www.pgyer.com/apiv2/app/buildInfo";
@@ -28,6 +29,24 @@ async function runPgyerUpload(options = {}) {
 
   if (action === "status") {
     const result = await queryBuildInfo(config, options.buildKey || getLastPgyerBuildKey());
+    recordUploadRun(createUploadRunRecord("pgyer", action, startedAt, result));
+    return result;
+  }
+
+  if (action === "revoke-review") {
+    updateProgress({
+      phase: "unsupported",
+      percent: 100,
+      statusText: "无需撤销审核",
+      detail: "蒲公英是内测分发上传流程，没有应用市场审核撤销接口。",
+    });
+    const result = {
+      ok: false,
+      store: "pgyer",
+      action,
+      message: "蒲公英没有应用市场审核流程，无法执行撤销审核；如需下架测试包，请到蒲公英后台处理对应 build。",
+      warnings: ["蒲公英当前接入的是上传/查询 buildInfo，不是应用市场审核发布。"],
+    };
     recordUploadRun(createUploadRunRecord("pgyer", action, startedAt, result));
     return result;
   }
@@ -214,14 +233,16 @@ async function uploadPackage(config, precheck, updateProgress, signal) {
  * @returns {object} 蒲公英 token 接口参数。
  */
 function buildTokenParams(config) {
-  const releaseNotes = config.releaseNotes || readCurrentNotes();
+  // 蒲公英接口字段名叫 buildUpdateDescription。前端统一使用“渠道发布说明”
+  // 来维护版本更新内容，避免同一含义出现两套输入框。
+  const releaseNotes = config.releaseNotes || config.buildUpdateDescription || readCurrentNotes();
   return compactParams({
     _api_key: config.apiKey,
     buildType: config.buildType,
     buildInstallType: config.buildInstallType,
     buildPassword: config.buildPassword,
     buildDescription: config.buildDescription,
-    buildUpdateDescription: config.buildUpdateDescription || releaseNotes,
+    buildUpdateDescription: releaseNotes,
     oversea: config.oversea,
     buildInstallDate: config.buildInstallDate,
     buildInstallStartDate: config.buildInstallStartDate,
@@ -518,69 +539,6 @@ function inferBuildType(filePath) {
   if (ext === ".apk" || ext === ".aab") return "android";
   if (ext === ".ipa") return "ios";
   return "";
-}
-
-/**
- * 格式化上传字节数。
- *
- * @param {number} bytes 字节数。
- * @returns {string} 适合进度详情展示的大小。
- */
-function formatBytes(bytes) {
-  const value = Number(bytes || 0);
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / 1024 / 1024).toFixed(1)} MB`;
-}
-
-/**
- * 删除空值参数，但保留 0 和 false。
- *
- * @param {object} params 原始参数。
- * @returns {object} 清理后的参数。
- */
-function compactParams(params) {
-  return Object.fromEntries(Object.entries(params).filter(([, value]) => !isBlank(value)));
-}
-
-/**
- * 判断值是否为空。
- *
- * @param {unknown} value 任意值。
- * @returns {boolean} true 表示不应参与提交。
- */
-function isBlank(value) {
-  return value === undefined || value === null || (typeof value === "string" && value.trim() === "");
-}
-
-/**
- * 等待指定毫秒数。
- *
- * @param {number} ms 等待时间，单位毫秒。
- * @returns {Promise<void>} 延时 Promise。
- */
-function delay(ms, signal) {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error("上传任务已终止"));
-      return;
-    }
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
-      reject(new Error("上传任务已终止"));
-    }, { once: true });
-  });
-}
-
-/**
- * 如果上传任务已被终止，立即抛出统一错误。
- *
- * @param {AbortSignal|undefined} signal 任务终止信号。
- * @returns {void}
- */
-function throwIfAborted(signal) {
-  if (signal?.aborted) throw new Error("上传任务已终止");
 }
 
 /**

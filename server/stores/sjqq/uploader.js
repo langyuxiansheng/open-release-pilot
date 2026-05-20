@@ -4,70 +4,20 @@ const http = require("http");
 const https = require("https");
 const path = require("path");
 const { readStoreConfig, readCurrentNotes, recordUploadRun } = require("../../db");
+const { compactParams, isBlank, md5FileSync, throwIfAborted } = require("../common");
 
 const DEFAULT_API_BASE_URL = "https://p.open.qq.com/open_file/developer_api";
 const DEFAULT_CONTENT_TYPE = "application/x-www-form-urlencoded";
 
-// update_app 只接收应用宝文档里的业务字段。这里明确白名单，
-// 避免把 access_secret、本地文件路径、前端分组字段等内部配置误传给开放平台。
+// update_app 只接收当前面板维护的最小业务字段。
+// serial_number、apk md5 和 apk flag 都由本轮文件上传结果生成，
+// 避免旧配置里的隐藏流水号被误提交到应用宝。
 const UPDATE_PARAM_KEYS = [
-  "distribution_end",
   "pkg_name",
   "app_id",
-  "app_name",
-  "modify_app_name_reason",
-  "category",
-  "modify_category_reason",
-  "operator",
-  "developer",
-  "introduce",
-  "one_word_summary",
-  "age_level",
-  "icon_file_serial_number",
-  "snapshots_file_serial_number",
-  "screen_size",
-  "language",
-  "ipv6",
-  "device_type",
   "feature",
   "deploy_type",
   "deploy_time",
-  "copyright_elec_cert_file_serial_number",
-  "copyright_licences_file_serial_number",
-  "is_soft_delegation",
-  "soft_delegation_file_serial_number",
-  "soft_delegation_period_type",
-  "soft_delegation_start_time",
-  "soft_delegation_end_time",
-  "special_ind_category",
-  "other_copyright_file_serial_number",
-  "security_reports_file_serial_number",
-  "apk32_flag",
-  "apk64_flag",
-  "apk32_file_serial_number",
-  "apk32_file_md5",
-  "apk64_file_serial_number",
-  "apk64_file_md5",
-  "login_flag",
-  "login_account",
-  "pay_type",
-  "pay_promise_file_serial_number",
-  "demo_video_flag",
-  "demo_video_file_serial_number",
-];
-
-// 本地文件字段和 update_app 里的流水号字段映射。真实上传时会先调用
-// /get_file_upload_info 换取 serial_number，再把流水号写入对应 update_app 字段。
-const FILE_FIELD_RULES = [
-  { localKey: "iconPath", targetKey: "icon_file_serial_number", type: "img", multiple: false },
-  { localKey: "screenshotPaths", targetKey: "snapshots_file_serial_number", type: "img", multiple: true },
-  { localKey: "copyrightElecCertPath", targetKey: "copyright_elec_cert_file_serial_number", type: "pdf", multiple: false },
-  { localKey: "copyrightLicencePaths", targetKey: "copyright_licences_file_serial_number", type: "img", multiple: true },
-  { localKey: "softDelegationFilePaths", targetKey: "soft_delegation_file_serial_number", type: "img", multiple: true },
-  { localKey: "otherCopyrightFilePaths", targetKey: "other_copyright_file_serial_number", type: "img", multiple: true },
-  { localKey: "securityReportPaths", targetKey: "security_reports_file_serial_number", type: "img", multiple: true },
-  { localKey: "payPromisePath", targetKey: "pay_promise_file_serial_number", type: "pdf", multiple: false },
-  { localKey: "demoVideoPath", targetKey: "demo_video_file_serial_number", type: "video", multiple: false },
 ];
 
 /**
@@ -89,6 +39,24 @@ async function runSjqqUpload(options = {}) {
 
   if (action === "status") {
     const result = await queryUpdateStatus(config);
+    recordUploadRun(createUploadRunRecord("sjqq", action, startedAt, result));
+    return result;
+  }
+
+  if (action === "revoke-review") {
+    updateProgress({
+      phase: "revoke",
+      percent: 100,
+      statusText: "撤销接口未接入",
+      detail: "当前应用宝文档接入的是上传更新和状态查询，未配置可确认的自动撤销审核路由。",
+    });
+    const result = {
+      ok: false,
+      store: "sjqq",
+      action,
+      message: "应用宝暂未接入自动撤销审核接口，请先到应用宝开放平台后台人工撤销；后续确认官方撤销路由后可在 sjqq/uploader.js 单独补接。",
+      warnings: ["为了避免误调用不确定接口，当前不会猜测撤销审核路由。"],
+    };
     recordUploadRun(createUploadRunRecord("sjqq", action, startedAt, result));
     return result;
   }
@@ -120,16 +88,16 @@ async function runSjqqUpload(options = {}) {
 }
 
 /**
- * 从本地商店配置中读取应用宝配置。
+ * 从当前项目的商店配置中读取应用宝配置。
  *
- * @returns {object} stores.local.json 或 stores.example.json 中的 sjqq 配置。
+ * @returns {object} projects-db.json 和 stores.example.json 合并后的 sjqq 配置。
  */
 function getSjqqConfig() {
   return normalizeSjqqConfig(readStoreConfig().stores.sjqq || {});
 }
 
 /**
- * 兼容早期 stores.local.json 里的字段命名。
+ * 兼容早期本地配置里的字段命名。
  *
  * 之前应用宝还是人工配置时用的是 packageName/appId/clientSecret；
  * 接入官方接口后字段改为文档原名 pkg_name/app_id/access_secret。
@@ -171,6 +139,9 @@ function buildUploadPrecheck(config) {
 
   const updateParams = buildUpdateParams(config, {});
   const changedFields = Object.keys(updateParams).filter((key) => !["pkg_name", "app_id", "deploy_type"].includes(key));
+  if (Number(updateParams.deploy_type) === 2 && isBlank(updateParams.deploy_time)) {
+    missing.push("deploy_time");
+  }
   if (changedFields.length === 0 && plannedFiles.length === 0) {
     warnings.push("没有检测到 APK、截图、资质文件或基础信息变更字段。");
   }
@@ -224,12 +195,12 @@ async function uploadAndSubmit(config, precheck, updateProgress = () => {}, sign
     appendSerialNumber(uploadedSerials, file.targetKey, uploadInfo.serial_number);
 
     if (file.targetKey === "apk32_file_serial_number") {
-      uploadedSerials.apk32_file_md5 = md5File(file.path);
-      uploadedSerials.apk32_flag = config.apk32_flag || 1;
+      uploadedSerials.apk32_file_md5 = md5FileSync(file.path);
+      uploadedSerials.apk32_flag = 1;
     }
     if (file.targetKey === "apk64_file_serial_number") {
-      uploadedSerials.apk64_file_md5 = md5File(file.path);
-      uploadedSerials.apk64_flag = config.apk64_flag || 1;
+      uploadedSerials.apk64_file_md5 = md5FileSync(file.path);
+      uploadedSerials.apk64_flag = 1;
     }
   }
 
@@ -479,14 +450,6 @@ function collectPlannedFiles(config) {
   addFile(config.apk32Path ? "apk32Path" : "apkPath", "apk32_file_serial_number", apk32Path, "apk");
   addFile("apk64Path", "apk64_file_serial_number", config.apk64Path, "apk");
 
-  FILE_FIELD_RULES.forEach((rule) => {
-    const value = config[rule.localKey];
-    if (rule.multiple) {
-      normalizeList(value).forEach((filePath) => addFile(rule.localKey, rule.targetKey, filePath, rule.type));
-    } else {
-      addFile(rule.localKey, rule.targetKey, value, rule.type);
-    }
-  });
   return files;
 }
 
@@ -552,48 +515,6 @@ function inferFileType(filePath, fallback) {
 }
 
 /**
- * 计算文件 MD5。
- *
- * @param {string} filePath 文件路径。
- * @returns {string} 小写十六进制 MD5。
- */
-function md5File(filePath) {
-  return crypto.createHash("md5").update(fs.readFileSync(filePath)).digest("hex");
-}
-
-/**
- * 删除空值参数，但保留 0 和 false。
- *
- * @param {object} params 原始参数。
- * @returns {object} 清理后的参数。
- */
-function compactParams(params) {
-  return Object.fromEntries(Object.entries(params).filter(([, value]) => !isBlank(value)));
-}
-
-/**
- * 判断值是否为空。
- *
- * @param {unknown} value 任意值。
- * @returns {boolean} true 表示不应参与提交。
- */
-function isBlank(value) {
-  return value === undefined || value === null || (typeof value === "string" && value.trim() === "");
-}
-
-/**
- * 把多行文本或数组统一成字符串数组。
- *
- * @param {unknown} value 配置值。
- * @returns {string[]} 文件路径列表。
- */
-function normalizeList(value) {
-  if (Array.isArray(value)) return value.map((item) => String(item).trim()).filter(Boolean);
-  if (isBlank(value)) return [];
-  return String(value).split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
-}
-
-/**
  * 清理接口路由。
  *
  * 文档中部分路由带空格，例如 “/ get_file_upload_info”，真实请求需要去掉空格。
@@ -604,16 +525,6 @@ function normalizeList(value) {
 function normalizeRoute(route) {
   const cleaned = String(route || "").replace(/\s+/g, "");
   return cleaned.startsWith("/") ? cleaned : `/${cleaned}`;
-}
-
-/**
- * 如果上传任务已被终止，立即抛出统一错误。
- *
- * @param {AbortSignal|undefined} signal 任务终止信号。
- * @returns {void}
- */
-function throwIfAborted(signal) {
-  if (signal?.aborted) throw new Error("上传任务已终止");
 }
 
 /**
