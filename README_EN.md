@@ -71,6 +71,8 @@ Open Release Pilot LAN: http://192.168.1.10:8787
 
 On first use, open Project Management and replace the demo project root with your real Flutter project path.
 
+For complete setup steps, release workflows, and security precautions, see the [User Guide](./docs/USER_GUIDE_EN.md).
+
 ## Startup Commands
 
 | Command | Description |
@@ -89,6 +91,7 @@ open-release-pilot/
 ├── config/
 │   └── stores.example.json          # Example store config without real secrets
 ├── data/                            # Local runtime data, ignored by Git by default
+├── docs/                            # User guides and project documentation
 ├── public/                          # Frontend pages, styles, and modules
 ├── scripts/
 │   ├── build_android_channels.sh    # Android multi-channel build script

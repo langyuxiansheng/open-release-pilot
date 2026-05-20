@@ -71,6 +71,8 @@ Open Release Pilot LAN: http://192.168.1.10:8787
 
 首次打开后进入「项目管理」，把示例项目根目录替换成你的 Flutter 项目路径。
 
+更完整的接入步骤、发布流程和安全注意事项请查看：[使用说明书](./docs/USER_GUIDE.md)。
+
 ## 启动命令
 
 | 命令 | 说明 |
@@ -89,6 +91,7 @@ open-release-pilot/
 ├── config/
 │   └── stores.example.json          # 应用市场配置示例，不包含真实密钥
 ├── data/                            # 本地运行数据，默认被 Git 忽略
+├── docs/                            # 使用说明和项目文档
 ├── public/                          # 前端页面、样式和模块
 ├── scripts/
 │   ├── build_android_channels.sh    # Android 多渠道构建脚本
